@@ -11,8 +11,10 @@
   // and leave the container with no Python dependencies installed.
   "postCreateCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends libgles2 libegl1 && { sudo apt-get install -y --no-install-recommends libglib2.0-0 || sudo apt-get install -y --no-install-recommends libglib2.0-0t64 || true; } && pip install --user -r requirements.txt && python scripts/fetch_pose_model.py && python scripts/train_model.py",
 
+  // printf, not echo: bash's echo prints "\n" literally rather than as a line
+  // break, which made this hint the ugliest thing in a fresh codespace.
   "postAttachCommand": {
-    "hint": "echo '\\n  Ready. Start it with:  uvicorn kneeguard.api:app --host 0.0.0.0 --port 8000\\n  Then open the forwarded port 8000, and set its visibility to Public to use a phone camera.\\n'"
+    "hint": "printf '\\n  Ready. Start it with:  ./run.sh\\n  Then open the forwarded port 8000 (Ports tab).\\n  Set that port to Public to use a phone camera.\\n\\n'"
   },
 
   "forwardPorts": [8000],
