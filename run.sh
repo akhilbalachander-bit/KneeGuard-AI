@@ -45,8 +45,24 @@ lan_ip() {
 }
 
 echo "==> Installing dependencies"
-"$PYTHON" -m pip install --quiet --upgrade pip
-"$PYTHON" -m pip install --quiet -r requirements.txt
+# Best-effort: on Debian/Ubuntu (and Codespaces) pip is installed by the system
+# package manager and cannot uninstall itself, which under `set -e` would abort
+# the whole script before anything useful happened. A stale pip is harmless.
+"$PYTHON" -m pip install --quiet --upgrade pip >/dev/null 2>&1 || true
+
+if ! "$PYTHON" -m pip install --quiet -r requirements.txt; then
+  echo >&2
+  echo "Dependency install failed." >&2
+  echo >&2
+  echo "If Python reported an 'externally-managed-environment' (PEP 668)," >&2
+  echo "run this inside a virtualenv:" >&2
+  echo >&2
+  echo "    python3 -m venv .venv" >&2
+  echo "    source .venv/bin/activate" >&2
+  echo "    ./run.sh${1:+ $1}" >&2
+  echo >&2
+  exit 1
+fi
 
 echo "==> Fetching the MediaPipe pose model (skipped if already present)"
 "$PYTHON" scripts/fetch_pose_model.py
