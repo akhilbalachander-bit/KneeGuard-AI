@@ -126,7 +126,7 @@ def main() -> int:
     if "libgl" in blob or "libegl" in blob or "cannot open shared object" in blob:
         print("  MediaPipe's native libraries are missing. Fix with:\n")
         print("      sudo apt-get update")
-        print("      sudo apt-get install -y libgles2 libegl1 libglib2.0-0\n")
+        print("      sudo apt-get install -y libgl1 libglib2.0-0 libgles2 libegl1\n")
         print("  Then restart the server.\n")
 
     print("  Full tracebacks:\n")

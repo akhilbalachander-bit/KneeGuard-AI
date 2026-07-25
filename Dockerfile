@@ -12,14 +12,25 @@
 # `-slim` tag would break the build the day the default moves.
 FROM python:3.11-slim-bookworm
 
-# MediaPipe's Tasks runtime dlopen()s the GLES/EGL client libraries even for
-# CPU-only inference. Without these the very first landmarker call dies with
-# "OSError: libGLESv2.so.2: cannot open shared object file" — the single most
-# common way this image fails to start. libglib2.0-0 is for OpenCV.
+# Native libraries pip cannot install, and which the app needs in two places:
+#
+#   libgl1        libGL.so.1     — mediapipe depends on opencv-contrib-python
+#                                  (the full build, not headless), so `import
+#                                  cv2` fails without it. This one bites even
+#                                  though requirements.txt asks for headless
+#                                  OpenCV: both get installed and the full
+#                                  build wins the import.
+#   libgles2      libGLESv2.so.2 — MediaPipe's Tasks runtime dlopen()s these
+#   libegl1       libEGL.so.1      even for CPU-only inference.
+#   libglib2.0-0                  — OpenCV runtime dependency.
+#
+# Miss any of them and the container starts cleanly, then fails on the first
+# scan. That is the single most common way this deployment breaks.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
         libgles2 \
         libegl1 \
-        libglib2.0-0 \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 

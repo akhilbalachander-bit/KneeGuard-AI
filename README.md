@@ -272,11 +272,14 @@ MediaPipe's Tasks runtime `dlopen()`s the GLES/EGL client libraries even for
 CPU-only inference. On an image without them, the first pose call dies with:
 
 ```
-OSError: libGLESv2.so.2: cannot open shared object file: No such file or directory
+ImportError: libGL.so.1: cannot open shared object file: No such file or directory
 ```
 
-`pip install mediapipe` does not pull those in — they are system packages. The
-`Dockerfile` installs `libgles2`, `libegl1` and `libglib2.0-0`, which is the
+`pip install mediapipe` does not pull those in — they are system packages.
+Note that `mediapipe` depends on `opencv-contrib-python` (the *full* build), so
+`import cv2` needs `libGL.so.1` even though this project asks for headless
+OpenCV — both end up installed and the full build wins the import. The
+`Dockerfile` installs `libgl1`, `libglib2.0-0`, `libgles2` and `libegl1`, which is the
 difference between a working deploy and a container that starts fine and then
 500s on the first scan. Most "deploy a Python app" buildpacks give you no way
 to add them.

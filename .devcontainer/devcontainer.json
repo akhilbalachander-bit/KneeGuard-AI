@@ -9,14 +9,15 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
 
-  // MediaPipe's Tasks runtime dlopen()s the GLES/EGL client libraries even for
-  // CPU-only inference, and pip cannot install them. Without these the first
-  // pose call fails with "libGLESv2.so.2: cannot open shared object file".
+  // Native libraries pip cannot install. libgl1 is required because mediapipe
+  // depends on opencv-contrib-python (the full build), so `import cv2` fails
+  // without libGL.so.1; libgles2/libegl1 are dlopen()ed by MediaPipe's Tasks
+  // runtime even for CPU-only inference.
   // Both models are built here so the first scan is not slow.
   // glib is named libglib2.0-0 on Debian bookworm and libglib2.0-0t64 on newer
   // releases, so it is attempted best-effort — a miss must not abort the chain
   // and leave the container with no Python dependencies installed.
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends libgles2 libegl1 && { sudo apt-get install -y --no-install-recommends libglib2.0-0 || sudo apt-get install -y --no-install-recommends libglib2.0-0t64 || true; } && pip install --user -r requirements.txt && python scripts/fetch_pose_model.py && python scripts/train_model.py",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libgles2 libegl1 && { sudo apt-get install -y --no-install-recommends libglib2.0-0 || sudo apt-get install -y --no-install-recommends libglib2.0-0t64 || true; } && pip install --user -r requirements.txt && python scripts/fetch_pose_model.py && python scripts/train_model.py",
 
   // printf, not echo: bash's echo prints "\n" literally rather than as a line
   // break, which made this hint the ugliest thing in a fresh codespace.

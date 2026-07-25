@@ -113,7 +113,7 @@ def _get_landmarker():
         raise PoseModelUnavailable(
             f"MediaPipe could not load its native libraries ({exc}). "
             "These are system packages that pip does not install. On "
-            "Debian/Ubuntu: sudo apt-get install -y libgles2 libegl1 libglib2.0-0"
+            "Debian/Ubuntu: sudo apt-get install -y libgl1 libglib2.0-0 libgles2 libegl1"
         ) from exc
     except Exception as exc:  # noqa: BLE001 - report, never leak a bare 500
         raise PoseModelUnavailable(
