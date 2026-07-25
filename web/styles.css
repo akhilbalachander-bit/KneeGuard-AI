@@ -48,6 +48,11 @@
 
 * { box-sizing: border-box; }
 
+/* An explicit `display` in a rule below beats the UA stylesheet's
+   `[hidden] { display: none }`, which would leave overlays (placeholder, REC
+   badge, countdown) painted on top of the live camera feed. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--page);
@@ -267,6 +272,170 @@ input[type="range"] {
 .acwr-note[data-state="over"] { color: var(--status-warning); font-weight: 560; }
 
 /* ── Dropzone & demo ──────────────────────────────────────────────── */
+
+/* ── Tabs ─────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--page);
+  border: 1px solid var(--border);
+}
+
+.tab {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 580;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab:hover { color: var(--text-primary); }
+
+.tab[aria-selected="true"] {
+  background: var(--surface-1);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Camera ───────────────────────────────────────────────────────── */
+
+.camera-stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+}
+
+.camera-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+/* Framing guide — only meaningful while the live preview is running. */
+.camera-guide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.camera-stage[data-state="live"] .camera-guide { opacity: 0.75; }
+
+.camera-guide rect {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 0.5;
+  stroke-dasharray: 3 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.camera-guide .guide-midline {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 0.4;
+  stroke-dasharray: 1.5 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.camera-placeholder {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 20px;
+  text-align: center;
+  color: #e6e6e6;
+}
+
+.camera-icon { font-size: 26px; color: var(--accent); line-height: 1; }
+.camera-placeholder strong { font-size: 14px; }
+.camera-hint { font-size: 12px; color: #a9a9a4; max-width: 32ch; }
+
+.camera-countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 76px;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.camera-recording {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+
+.rec-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--status-critical);
+  animation: rec-pulse 1s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.camera-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.camera-error {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--page);
+  border: 1px solid var(--status-warning);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-dot { animation: none; }
+}
 
 .dropzone {
   display: flex;

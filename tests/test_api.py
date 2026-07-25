@@ -122,6 +122,73 @@ def test_scan_a_real_photo_end_to_end(client):
     assert fused.status_code == 200
 
 
+def _webm_clip(tmp_path, frames: int = 20):
+    """A small WebM clip, matching what the browser's MediaRecorder produces.
+
+    In-browser capture records to `video/webm` (VP8/VP9), so the server side has
+    to decode that container — not just the MP4 a phone's file picker yields.
+    """
+    import cv2
+    import numpy as np
+
+    path = tmp_path / "capture.webm"
+    writer = cv2.VideoWriter(
+        str(path), cv2.VideoWriter_fourcc(*"VP80"), 30, (320, 240)
+    )
+    assert writer.isOpened()
+    for i in range(frames):
+        writer.write(np.full((240, 320, 3), (i * 9) % 255, np.uint8))
+    writer.release()
+    assert path.stat().st_size > 0
+    return path
+
+
+@pytest.mark.skipif(not POSE_MODEL_PATH.exists(), reason="pose model bundle not downloaded")
+def test_webm_from_the_browser_camera_is_decoded(tmp_path):
+    """The camera tab's recording format must survive the round trip."""
+    import cv2
+
+    from kneeguard import pose_analysis
+
+    path = _webm_clip(tmp_path)
+
+    capture = cv2.VideoCapture(str(path))
+    assert capture.isOpened()
+    decoded = 0
+    while capture.read()[0]:
+        decoded += 1
+    capture.release()
+    assert decoded > 0
+
+    # No person in a flat colour field, so this must degrade gracefully.
+    report = pose_analysis.analyse_video(path)
+    assert report.frames_analysed == 0
+    assert report.notes
+
+
+@pytest.mark.skipif(not POSE_MODEL_PATH.exists(), reason="pose model bundle not downloaded")
+def test_scan_accepts_a_webm_upload(client, tmp_path):
+    path = _webm_clip(tmp_path)
+    with path.open("rb") as handle:
+        response = client.post(
+            "/api/scan", files={"file": ("capture.webm", handle, "video/webm")}
+        )
+    assert response.status_code == 200
+    assert response.json()["scan"]["source"] == "video"
+
+
+def test_scan_routes_camera_filenames_as_video(client, tmp_path):
+    """A capture sent without a usable content type still routes by extension."""
+    path = _webm_clip(tmp_path)
+    with path.open("rb") as handle:
+        response = client.post(
+            "/api/scan",
+            files={"file": ("capture.webm", handle, "application/octet-stream")},
+        )
+    # Either analysed as video, or 503 when the pose bundle is absent — never 415.
+    assert response.status_code in {200, 503}
+
+
 @pytest.mark.skipif(not POSE_MODEL_PATH.exists(), reason="pose model bundle not downloaded")
 def test_scan_of_an_image_without_a_person_is_handled(client):
     """A blank frame must produce an explanatory scan, not a 500."""

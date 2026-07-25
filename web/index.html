@@ -122,18 +122,75 @@
         </div>
       </div>
 
-      <div id="dropzone" class="dropzone" tabindex="0" role="button"
-           aria-describedby="dropzone-hint">
-        <span class="dropzone-icon" aria-hidden="true">⤒</span>
-        <strong>Drop a photo or 2–3 s clip</strong>
-        <span id="dropzone-hint" class="dropzone-hint">
-          Front-on, full body in frame, at the bottom of a drop-jump or squat.
-        </span>
-        <input type="file" id="file-input" accept="image/*,video/*" hidden />
+      <div class="tabs" role="tablist" aria-label="Movement scan input">
+        <button class="tab" role="tab" id="tab-camera" aria-controls="pane-camera"
+                aria-selected="true" data-pane="camera" type="button">Camera</button>
+        <button class="tab" role="tab" id="tab-upload" aria-controls="pane-upload"
+                aria-selected="false" data-pane="upload" type="button">Upload</button>
+        <button class="tab" role="tab" id="tab-demo" aria-controls="pane-demo"
+                aria-selected="false" data-pane="demo" type="button">Demo</button>
       </div>
 
-      <div class="demo-block">
-        <p class="demo-label">No clip to hand? Load a synthetic scan:</p>
+      <!-- Camera -->
+      <div class="pane" id="pane-camera" role="tabpanel" aria-labelledby="tab-camera">
+        <div id="camera-stage" class="camera-stage" data-state="idle">
+          <video id="camera-video" class="camera-video" playsinline muted autoplay
+                 aria-label="Live camera preview"></video>
+          <video id="camera-playback" class="camera-video" playsinline controls loop hidden
+                 aria-label="Recorded clip playback"></video>
+          <img id="camera-still" class="camera-video" hidden alt="Captured photo" />
+
+          <!-- Framing guide: helps the athlete get a full-body, front-on shot. -->
+          <svg id="camera-guide" class="camera-guide" viewBox="0 0 100 100"
+               preserveAspectRatio="none" aria-hidden="true">
+            <rect x="26" y="6" width="48" height="88" rx="4" />
+            <line x1="50" y1="6" x2="50" y2="94" class="guide-midline" />
+          </svg>
+
+          <div id="camera-countdown" class="camera-countdown" hidden aria-live="assertive"></div>
+
+          <div id="camera-recording" class="camera-recording" hidden>
+            <span class="rec-dot" aria-hidden="true"></span>
+            <span id="rec-timer">REC 0.0s</span>
+          </div>
+
+          <div id="camera-placeholder" class="camera-placeholder">
+            <span class="camera-icon" aria-hidden="true">◉</span>
+            <strong>Use your camera</strong>
+            <span class="camera-hint">Prop the phone up, stand back so your whole body fits the guide.</span>
+          </div>
+        </div>
+
+        <p id="camera-error" class="camera-error" hidden role="alert"></p>
+
+        <div class="camera-controls">
+          <button id="camera-start" class="btn btn-primary" type="button">Start camera</button>
+          <button id="camera-record" class="btn" type="button" hidden>Record 3 s</button>
+          <button id="camera-photo" class="btn" type="button" hidden>Take photo</button>
+          <button id="camera-flip" class="btn btn-ghost" type="button" hidden
+                  aria-label="Switch between front and rear camera">⇄</button>
+          <button id="camera-retake" class="btn" type="button" hidden>Retake</button>
+          <button id="camera-use" class="btn btn-primary" type="button" hidden>Analyse this</button>
+          <button id="camera-stop" class="btn btn-ghost" type="button" hidden>Turn off</button>
+        </div>
+      </div>
+
+      <!-- Upload -->
+      <div class="pane" id="pane-upload" role="tabpanel" aria-labelledby="tab-upload" hidden>
+        <div id="dropzone" class="dropzone" tabindex="0" role="button"
+             aria-describedby="dropzone-hint">
+          <span class="dropzone-icon" aria-hidden="true">⤒</span>
+          <strong>Drop a photo or 2–3 s clip</strong>
+          <span id="dropzone-hint" class="dropzone-hint">
+            Front-on, full body in frame, at the bottom of a drop-jump or squat.
+          </span>
+          <input type="file" id="file-input" accept="image/*,video/*" hidden />
+        </div>
+      </div>
+
+      <!-- Demo -->
+      <div class="pane" id="pane-demo" role="tabpanel" aria-labelledby="tab-demo" hidden>
+        <p class="demo-label">Synthetic scans — the same maths, generated landmarks:</p>
         <div id="demo-buttons" class="demo-buttons"></div>
       </div>
 

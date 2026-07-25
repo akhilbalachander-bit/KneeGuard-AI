@@ -205,6 +205,339 @@
     });
   }
 
+  /* ── Camera ─────────────────────────────────────────────────────── */
+
+  const RECORD_SECONDS = 3;
+  const COUNTDOWN_FROM = 3;
+
+  const camera = {
+    stream: null,
+    recorder: null,
+    facing: "environment",
+    captured: null, // { blob, filename }
+    timers: [],
+  };
+
+  function clearCameraTimers() {
+    camera.timers.forEach((id) => clearTimeout(id));
+    camera.timers.forEach((id) => clearInterval(id));
+    camera.timers = [];
+  }
+
+  function showCameraError(message) {
+    const node = $("camera-error");
+    node.hidden = false;
+    node.textContent = message;
+  }
+
+  function hideCameraError() {
+    $("camera-error").hidden = true;
+  }
+
+  /** getUserMedia only exists in a secure context (HTTPS or localhost). */
+  function cameraSupported() {
+    return Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  }
+
+  function insecureContextMessage() {
+    return (
+      `The browser hides the camera on insecure origins, so it is unavailable at ` +
+      `${location.origin}. Open the app at http://localhost:${location.port || 80}, ` +
+      `or serve it over HTTPS (./run.sh --https) to use a phone on the same network. ` +
+      `You can still use the Upload tab.`
+    );
+  }
+
+  function setCameraButtons(stateName) {
+    const live = stateName === "live";
+    const review = stateName === "review";
+    $("camera-start").hidden = stateName !== "idle";
+    $("camera-record").hidden = !live;
+    $("camera-photo").hidden = !live;
+    $("camera-flip").hidden = !live;
+    $("camera-stop").hidden = !live;
+    $("camera-retake").hidden = !review;
+    $("camera-use").hidden = !review;
+    $("camera-stage").dataset.state = stateName;
+  }
+
+  function stopStream() {
+    if (camera.stream) {
+      camera.stream.getTracks().forEach((track) => track.stop());
+      camera.stream = null;
+    }
+  }
+
+  async function startCamera() {
+    hideCameraError();
+
+    if (!cameraSupported()) {
+      showCameraError(
+        window.isSecureContext === false
+          ? insecureContextMessage()
+          : "This browser does not expose a camera API. Use the Upload tab instead."
+      );
+      return;
+    }
+
+    try {
+      stopStream();
+      camera.stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: camera.facing,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+    } catch (error) {
+      const name = error && error.name;
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        showCameraError(
+          "Camera permission was denied. Allow camera access for this site in your " +
+          "browser settings, then press Start camera again — or use the Upload tab."
+        );
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        showCameraError("No camera found on this device. Use the Upload tab instead.");
+      } else if (name === "NotReadableError") {
+        showCameraError(
+          "The camera is already in use by another app. Close it and try again."
+        );
+      } else {
+        showCameraError(`Could not start the camera: ${error && error.message}`);
+      }
+      return;
+    }
+
+    const video = $("camera-video");
+    video.srcObject = camera.stream;
+    video.hidden = false;
+    $("camera-playback").hidden = true;
+    $("camera-still").hidden = true;
+    $("camera-placeholder").hidden = true;
+    await video.play().catch(() => { /* autoplay policies — preview still binds */ });
+    setCameraButtons("live");
+  }
+
+  function turnOffCamera() {
+    clearCameraTimers();
+    stopStream();
+    const video = $("camera-video");
+    video.srcObject = null;
+    video.hidden = true;
+    $("camera-playback").hidden = true;
+    $("camera-still").hidden = true;
+    $("camera-placeholder").hidden = false;
+    $("camera-countdown").hidden = true;
+    $("camera-recording").hidden = true;
+    setCameraButtons("idle");
+  }
+
+  async function flipCamera() {
+    camera.facing = camera.facing === "environment" ? "user" : "environment";
+    await startCamera();
+  }
+
+  function pickRecorderMime() {
+    const candidates = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+      "video/mp4",
+    ];
+    if (typeof MediaRecorder === "undefined") return null;
+    return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || null;
+  }
+
+  function countdown(from) {
+    return new Promise((resolve) => {
+      const node = $("camera-countdown");
+      node.hidden = false;
+      let value = from;
+      node.textContent = String(value);
+
+      const tick = setInterval(() => {
+        value -= 1;
+        if (value <= 0) {
+          clearInterval(tick);
+          node.textContent = "GO";
+          const done = setTimeout(() => {
+            node.hidden = true;
+            resolve();
+          }, 400);
+          camera.timers.push(done);
+        } else {
+          node.textContent = String(value);
+        }
+      }, 700);
+      camera.timers.push(tick);
+    });
+  }
+
+  function showCapturedVideo(blob, filename) {
+    camera.captured = { blob, filename };
+    const playback = $("camera-playback");
+    playback.src = URL.createObjectURL(blob);
+    playback.hidden = false;
+    $("camera-video").hidden = true;
+    $("camera-still").hidden = true;
+    setCameraButtons("review");
+  }
+
+  async function recordClip() {
+    const mime = pickRecorderMime();
+    if (!mime) {
+      showCameraError(
+        "This browser cannot record video. Use Take photo, or the Upload tab."
+      );
+      return;
+    }
+
+    $("camera-record").disabled = true;
+    $("camera-photo").disabled = true;
+    await countdown(COUNTDOWN_FROM);
+
+    const chunks = [];
+    let recorder;
+    try {
+      recorder = new MediaRecorder(camera.stream, { mimeType: mime });
+    } catch (error) {
+      showCameraError(`Could not start recording: ${error.message}`);
+      $("camera-record").disabled = false;
+      $("camera-photo").disabled = false;
+      return;
+    }
+    camera.recorder = recorder;
+
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size) chunks.push(event.data);
+    };
+
+    recorder.onstop = () => {
+      $("camera-recording").hidden = true;
+      $("camera-record").disabled = false;
+      $("camera-photo").disabled = false;
+      camera.recorder = null;
+      clearCameraTimers();
+
+      const blob = new Blob(chunks, { type: mime });
+      if (!blob.size) {
+        showCameraError("Recording came back empty. Try again.");
+        setCameraButtons("live");
+        return;
+      }
+      // Extension must match the mime so the server routes it as video.
+      showCapturedVideo(blob, mime.startsWith("video/mp4") ? "capture.mp4" : "capture.webm");
+    };
+
+    recorder.start();
+
+    const badge = $("camera-recording");
+    badge.hidden = false;
+    const startedAt = Date.now();
+    const ticker = setInterval(() => {
+      const elapsed = (Date.now() - startedAt) / 1000;
+      $("rec-timer").textContent = `REC ${Math.min(elapsed, RECORD_SECONDS).toFixed(1)}s`;
+    }, 100);
+    camera.timers.push(ticker);
+
+    const autostop = setTimeout(() => {
+      if (recorder.state === "recording") recorder.stop();
+    }, RECORD_SECONDS * 1000);
+    camera.timers.push(autostop);
+  }
+
+  function takePhoto() {
+    const video = $("camera-video");
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          showCameraError("Could not capture a frame. Try again.");
+          return;
+        }
+        camera.captured = { blob, filename: "capture.jpg" };
+        const still = $("camera-still");
+        still.src = URL.createObjectURL(blob);
+        still.hidden = false;
+        $("camera-video").hidden = true;
+        $("camera-playback").hidden = true;
+        setCameraButtons("review");
+      },
+      "image/jpeg",
+      0.92
+    );
+  }
+
+  function retake() {
+    camera.captured = null;
+    const playback = $("camera-playback");
+    if (playback.src) URL.revokeObjectURL(playback.src);
+    playback.removeAttribute("src");
+    playback.hidden = true;
+
+    const still = $("camera-still");
+    if (still.src) URL.revokeObjectURL(still.src);
+    still.removeAttribute("src");
+    still.hidden = true;
+
+    $("camera-video").hidden = false;
+    setCameraButtons("live");
+  }
+
+  async function submitCapture() {
+    if (!camera.captured) return;
+    const { blob, filename } = camera.captured;
+    const file = new File([blob], filename, { type: blob.type });
+    $("camera-use").disabled = true;
+    try {
+      await uploadFile(file);
+    } finally {
+      $("camera-use").disabled = false;
+    }
+  }
+
+  function bindCamera() {
+    $("camera-start").addEventListener("click", startCamera);
+    $("camera-stop").addEventListener("click", turnOffCamera);
+    $("camera-flip").addEventListener("click", flipCamera);
+    $("camera-record").addEventListener("click", recordClip);
+    $("camera-photo").addEventListener("click", takePhoto);
+    $("camera-retake").addEventListener("click", retake);
+    $("camera-use").addEventListener("click", submitCapture);
+
+    // Surface the insecure-origin case up front rather than on first click.
+    if (!cameraSupported()) {
+      showCameraError(
+        window.isSecureContext === false
+          ? insecureContextMessage()
+          : "This browser does not expose a camera API. Use the Upload tab instead."
+      );
+      $("camera-start").disabled = true;
+    }
+
+    // Never leave the camera running in the background.
+    window.addEventListener("pagehide", turnOffCamera);
+  }
+
+  function bindTabs() {
+    const tabs = Array.from(document.querySelectorAll(".tab"));
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((other) => {
+          const selected = other === tab;
+          other.setAttribute("aria-selected", String(selected));
+          $(`pane-${other.dataset.pane}`).hidden = !selected;
+        });
+        if (tab.dataset.pane !== "camera") turnOffCamera();
+      });
+    });
+  }
+
   async function loadDemo(key, button) {
     document.querySelectorAll(".btn-demo").forEach((b) => b.classList.remove("is-active"));
     button.classList.add("is-active");
@@ -434,6 +767,8 @@
     initTheme();
     bindForm();
     bindScanner();
+    bindTabs();
+    bindCamera();
     $("assess-btn").addEventListener("click", assess);
 
     try {

@@ -4,12 +4,13 @@ Knee ligament injury risk screening for soccer players — ACL, MCL and PCL —
 combining **workload modelling** with **computer-vision landing biomechanics**.
 
 Instead of waiting for a tear, an athlete enters a week of match data and
-uploads a three-second drop-jump clip. KneeGuard measures how the knee actually
-tracks under load, fuses that with the fatigue and workload picture, and returns
-a per-ligament scorecard plus a targeted prevention plan.
+**records a three-second drop-jump straight from the browser**. KneeGuard
+measures how the knee actually tracks under load, fuses that with the fatigue
+and workload picture, and returns a per-ligament scorecard plus a targeted
+prevention plan.
 
 ```
-        Workload questionnaire            Photo / 2-3 s clip
+        Workload questionnaire      Camera capture / upload / demo
                  │                                │
                  ▼                                ▼
    scikit-learn per-ligament LR        MediaPipe Pose (33 landmarks)
@@ -32,9 +33,11 @@ a per-ligament scorecard plus a targeted prevention plan.
 ```bash
 git clone <this repo> && cd KneeGuard-AI
 ./run.sh                       # installs deps, fetches models, serves on :8000
+./run.sh --https               # same, over TLS — needed for phone cameras
 ```
 
-Then open <http://127.0.0.1:8000>.
+Then open <http://localhost:8000>. Use `localhost`, not the LAN IP: the browser
+only exposes the camera in a secure context (see [The camera tab](#the-camera-tab)).
 
 Manual setup, if you prefer:
 
@@ -202,6 +205,50 @@ step off a box (~30 cm) and land, or do a single bodyweight squat to depth.
 
 ---
 
+## The camera tab
+
+The movement scan has three inputs: **Camera**, **Upload**, and **Demo**.
+
+The camera tab runs entirely in the browser — `getUserMedia` for the live
+preview, `MediaRecorder` for the clip — then posts the captured blob to the same
+`/api/scan` endpoint an upload uses. It gives you a framing guide to stand
+inside, a 3-2-1 countdown so you have time to get into position, a 3-second
+auto-stopping recording with a live timer, and a playback review with
+**Retake** / **Analyse this** before anything is sent. A front/rear toggle
+covers both filming yourself and filming a teammate. The camera is released the
+moment you switch tabs, press *Turn off*, or leave the page.
+
+### The HTTPS catch — read this before demoing on a phone
+
+**Browsers only expose the camera in a secure context.** `http://localhost`
+counts as secure; `http://192.168.1.42` does not. So pointing a phone at your
+laptop over plain HTTP means `navigator.mediaDevices` is simply *undefined* and
+no camera can appear — nothing you can fix in JavaScript.
+
+The app detects this and says so, naming the origin and the fix, rather than
+failing silently. To actually use a phone camera:
+
+```bash
+./run.sh --https      # generates a self-signed cert, prints the LAN URL
+```
+
+Then open the printed `https://<lan-ip>:8000` on the phone and accept the
+certificate warning once. Verified end-to-end: over TLS on a non-loopback
+address the camera initialises and a capture round-trips to `/api/scan`.
+
+The Upload tab is always available as a fallback — phones let you record with
+the native camera app and pick the file, which needs no special context.
+
+### Browser support
+
+`MediaRecorder` output format is negotiated at runtime from
+`video/webm;codecs=vp9` → `vp8` → `webm` → `mp4`, so Chrome/Edge/Firefox record
+WebM and Safari records MP4. The server decodes both. If recording is
+unavailable entirely, **Take photo** still works — a single frame at the bottom
+of a squat is a valid (if less informative) scan.
+
+---
+
 ## Layout
 
 ```
@@ -216,7 +263,7 @@ kneeguard/
   api.py             # FastAPI routes + static hosting
 web/                 # dashboard (vanilla HTML/CSS/JS, no build step)
 scripts/             # fetch_pose_model.py, train_model.py
-tests/               # 81 tests: geometry, model behaviour, fusion, HTTP
+tests/               # 84 tests: geometry, model behaviour, fusion, HTTP, WebM
 ```
 
 ## Tests
@@ -226,8 +273,13 @@ python -m pytest tests/ -q
 ```
 
 Covers the geometry against hand-built poses with known answers, monotonicity of
-the risk model in each factor, the fusion cap, band thresholds, and the full
-HTTP surface including malformed uploads and images with no person in them.
+the risk model in each factor, the fusion cap, band thresholds, WebM decoding
+of browser-recorded clips, and the full HTTP surface including malformed uploads
+and images with no person in them.
+
+The camera flow itself is verified with Playwright against a fake media device:
+photo and clip capture, countdown, recording, submission to `/api/scan`, camera
+release on stop, the insecure-origin fallback, and the HTTPS path.
 
 ## Prevention exercises
 
