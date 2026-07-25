@@ -2,6 +2,13 @@
   "name": "KneeGuard AI",
   "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
 
+  // The base Python image ships without the GitHub CLI, so `gh codespace ports
+  // visibility ...` — the scripted way to make the app publicly reachable —
+  // fails with "gh: command not found".
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
   // MediaPipe's Tasks runtime dlopen()s the GLES/EGL client libraries even for
   // CPU-only inference, and pip cannot install them. Without these the first
   // pose call fails with "libGLESv2.so.2: cannot open shared object file".
