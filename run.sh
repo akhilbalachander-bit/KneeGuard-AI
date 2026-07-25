@@ -26,6 +26,24 @@ for arg in "$@"; do
   esac
 done
 
+# Best-effort LAN address, so the script can print a URL a phone can reach.
+# macOS has ipconfig(8) and no `hostname -I`; Linux is the other way round.
+lan_ip() {
+  local candidate
+  if command -v ipconfig >/dev/null 2>&1; then
+    for iface in en0 en1 en2; do
+      candidate="$(ipconfig getifaddr "$iface" 2>/dev/null || true)"
+      [ -n "$candidate" ] && { echo "$candidate"; return; }
+    done
+  fi
+  candidate="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  [ -n "$candidate" ] && { echo "$candidate"; return; }
+  if command -v ip >/dev/null 2>&1; then
+    ip route get 1.1.1.1 2>/dev/null \
+      | awk '{for (i = 1; i <= NF; i++) if ($i == "src") { print $(i + 1); exit }}'
+  fi
+}
+
 echo "==> Installing dependencies"
 "$PYTHON" -m pip install --quiet --upgrade pip
 "$PYTHON" -m pip install --quiet -r requirements.txt
@@ -40,11 +58,28 @@ fi
 
 SSL_ARGS=()
 SCHEME="http"
+LAN_IP="$(lan_ip || true)"
 
 if [ "$USE_HTTPS" = "1" ]; then
   CERT_DIR="certs"
   mkdir -p "$CERT_DIR"
+
+  # The cert must name the address the phone actually types, or the browser
+  # reports a name mismatch on top of the self-signed warning and may refuse
+  # to let you continue. Re-issue whenever the LAN address has moved.
+  SAN="DNS:localhost,IP:127.0.0.1"
+  [ -n "$LAN_IP" ] && SAN="${SAN},IP:${LAN_IP}"
+
+  NEEDS_CERT=0
   if [ ! -f "$CERT_DIR/key.pem" ] || [ ! -f "$CERT_DIR/cert.pem" ]; then
+    NEEDS_CERT=1
+  elif [ -n "$LAN_IP" ] && ! openssl x509 -in "$CERT_DIR/cert.pem" -noout -text 2>/dev/null \
+        | grep -q "IP Address:${LAN_IP}\b"; then
+    echo "==> LAN address changed to ${LAN_IP}; re-issuing the certificate"
+    NEEDS_CERT=1
+  fi
+
+  if [ "$NEEDS_CERT" = "1" ]; then
     if ! command -v openssl >/dev/null 2>&1; then
       echo "openssl is required for --https but was not found." >&2
       exit 1
@@ -53,26 +88,40 @@ if [ "$USE_HTTPS" = "1" ]; then
     openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
       -keyout "$CERT_DIR/key.pem" -out "$CERT_DIR/cert.pem" \
       -subj "/CN=kneeguard.local" \
-      -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null
+      -addext "subjectAltName=${SAN}" 2>/dev/null
   fi
+
   SSL_ARGS=(--ssl-keyfile "$CERT_DIR/key.pem" --ssl-certfile "$CERT_DIR/cert.pem")
   SCHEME="https"
 fi
 
-LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
-
 echo
-echo "==> KneeGuard AI on ${SCHEME}://127.0.0.1:${PORT}"
-if [ "$USE_HTTPS" = "1" ] && [ -n "$LAN_IP" ]; then
-  echo "    From your phone: ${SCHEME}://${LAN_IP}:${PORT}"
-  echo "    The certificate is self-signed, so accept the browser warning once."
-elif [ -n "$LAN_IP" ]; then
-  echo "    Camera capture needs a secure context: use localhost, or re-run"
-  echo "    with ./run.sh --https to use a phone at http://${LAN_IP}:${PORT}"
+echo "  ┌─ KneeGuard AI ──────────────────────────────────────────"
+echo "  │  This computer:  ${SCHEME}://localhost:${PORT}"
+if [ "$USE_HTTPS" = "1" ]; then
+  if [ -n "$LAN_IP" ]; then
+    echo "  │  Phone / tablet: ${SCHEME}://${LAN_IP}:${PORT}"
+    echo "  │"
+    echo "  │  The certificate is self-signed, so the phone will warn once."
+    echo "  │  Tap Advanced -> Proceed. Both devices must be on the same Wi-Fi."
+  else
+    echo "  │  Could not detect a LAN address — find this machine's IP and use"
+    echo "  │  ${SCHEME}://<that-ip>:${PORT} on the phone."
+  fi
+else
+  echo "  │"
+  echo "  │  Camera capture only works on localhost over plain HTTP."
+  if [ -n "$LAN_IP" ]; then
+    echo "  │  To use a phone camera at ${LAN_IP}, restart with:  ./run.sh --https"
+  else
+    echo "  │  To use a phone camera, restart with:  ./run.sh --https"
+  fi
 fi
 if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "    (ANTHROPIC_API_KEY unset — explanations will use the rule-based writer)"
+  echo "  │"
+  echo "  │  ANTHROPIC_API_KEY unset — explanations use the rule-based writer."
 fi
+echo "  └─────────────────────────────────────────────────────────"
 echo
 
 exec "$PYTHON" -m uvicorn kneeguard.api:app \
