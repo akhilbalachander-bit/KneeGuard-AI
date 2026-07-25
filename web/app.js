@@ -750,6 +750,15 @@
       renderDetail(report);
       $("disclaimer").textContent = report.disclaimer;
 
+      // Signed in -> save it. Signed out -> hold it, so signing in from the
+      // results screen still captures the scorecard just produced.
+      accounts.lastReport = report;
+      if (accountsReady() && accounts.user) {
+        saveAssessment(report);
+      } else {
+        updateSaveHint();
+      }
+
       $("results").scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (error) {
       $("results-empty").hidden = false;
@@ -761,6 +770,296 @@
     }
   }
 
+  /* ── Accounts (Supabase) ────────────────────────────────────────── */
+
+  const accounts = {
+    client: null,
+    user: null,
+    mode: "signin", // "signin" | "signup"
+    lastReport: null,
+  };
+
+  function accountsReady() {
+    return Boolean(accounts.client);
+  }
+
+  function initAccounts(cfg) {
+    if (!cfg || !cfg.enabled) return; // Not configured — feature stays hidden.
+
+    if (!window.supabase || typeof window.supabase.createClient !== "function") {
+      // CDN blocked or offline. Everything else still works, so say nothing
+      // louder than a console note.
+      console.warn("Supabase library unavailable — accounts disabled.");
+      return;
+    }
+
+    accounts.client = window.supabase.createClient(cfg.url, cfg.anon_key);
+    $("account-area").hidden = false;
+
+    accounts.client.auth.getSession().then(({ data }) => {
+      setUser(data && data.session ? data.session.user : null);
+    });
+    accounts.client.auth.onAuthStateChange((_event, session) => {
+      setUser(session ? session.user : null);
+    });
+  }
+
+  function setUser(user) {
+    accounts.user = user;
+    const signedIn = Boolean(user);
+
+    $("account-email").textContent = signedIn ? user.email : "";
+    $("account-email").hidden = !signedIn;
+    $("account-signin").hidden = signedIn;
+    $("account-signout").hidden = !signedIn;
+    $("account-history").hidden = !signedIn;
+
+    // Someone who signs in after running an assessment should not lose it.
+    if (signedIn && accounts.lastReport) saveAssessment(accounts.lastReport);
+    updateSaveHint();
+  }
+
+  function updateSaveHint(message) {
+    const hint = $("save-hint");
+    if (!hint) return;
+    if (message) {
+      hint.textContent = message;
+      hint.hidden = false;
+      return;
+    }
+    if (!accountsReady()) { hint.hidden = true; return; }
+    hint.hidden = false;
+    hint.textContent = accounts.user
+      ? "Saving to your history…"
+      : "Sign in to save this scorecard to your history.";
+  }
+
+  /** Flatten a report into one assessments row. Media is never included. */
+  function assessmentRow(report) {
+    const inputs = report.workload.inputs;
+    const byLigament = {};
+    report.ligaments.forEach((l) => { byLigament[l.ligament] = l.risk_index; });
+
+    return {
+      user_id: accounts.user.id,
+      age: inputs.age,
+      sex: inputs.sex,
+      minutes_last_7d: inputs.minutes_last_7d,
+      minutes_prior_28d: inputs.minutes_prior_28d,
+      consecutive_days: inputs.consecutive_days,
+      surface: inputs.surface,
+      soreness: inputs.soreness,
+      sleep_hours: inputs.sleep_hours,
+      prior_injury: inputs.prior_injury,
+      contact_events: inputs.contact_events,
+      slide_tackles: inputs.slide_tackles,
+      acwr: report.workload.acwr,
+      overall_index: report.overall.risk_index,
+      overall_band: report.overall.band,
+      primary_ligament: report.overall.primary_ligament,
+      acl_index: byLigament.ACL,
+      mcl_index: byLigament.MCL,
+      pcl_index: byLigament.PCL,
+      ligaments: report.ligaments,
+      action_plan: report.action_plan,
+      scan: report.scan, // numeric summary only — no image data
+      explanation: report.explanation,
+    };
+  }
+
+  async function saveAssessment(report) {
+    if (!accountsReady() || !accounts.user) return;
+    try {
+      const { error } = await accounts.client
+        .from("assessments")
+        .insert(assessmentRow(report));
+      if (error) throw new Error(error.message);
+      accounts.lastReport = null;
+      updateSaveHint("Saved to your history.");
+    } catch (error) {
+      updateSaveHint(`Could not save: ${error.message}`);
+    }
+  }
+
+  function openModal(id) {
+    $(id).hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeModal(id) {
+    $(id).hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  function setAuthMode(mode) {
+    accounts.mode = mode;
+    const signup = mode === "signup";
+    $("auth-title").textContent = signup ? "Create an account" : "Sign in";
+    $("auth-submit").textContent = signup ? "Create account" : "Sign in";
+    $("auth-toggle").textContent = signup
+      ? "I already have an account"
+      : "Create an account instead";
+    $("auth-password").setAttribute(
+      "autocomplete", signup ? "new-password" : "current-password"
+    );
+    $("auth-error").hidden = true;
+  }
+
+  async function submitAuth(event) {
+    event.preventDefault();
+    const email = $("auth-email").value.trim();
+    const password = $("auth-password").value;
+    const button = $("auth-submit");
+    const error = $("auth-error");
+
+    error.hidden = true;
+    button.disabled = true;
+    button.textContent = accounts.mode === "signup" ? "Creating…" : "Signing in…";
+
+    try {
+      const auth = accounts.client.auth;
+      const { data, error: authError } =
+        accounts.mode === "signup"
+          ? await auth.signUp({ email, password })
+          : await auth.signInWithPassword({ email, password });
+
+      if (authError) throw new Error(authError.message);
+
+      // With email confirmation switched on, signUp returns a user but no
+      // session — say so rather than looking like nothing happened.
+      if (accounts.mode === "signup" && data && data.user && !data.session) {
+        error.hidden = false;
+        error.textContent =
+          "Account created. Check your email to confirm it, then sign in.";
+        setAuthMode("signin");
+        return;
+      }
+      closeModal("auth-dialog");
+      $("auth-form").reset();
+    } catch (exc) {
+      error.hidden = false;
+      error.textContent = exc.message;
+    } finally {
+      button.disabled = false;
+      setAuthMode(accounts.mode);
+    }
+  }
+
+  function historyCard(row) {
+    const card = el("div", "history-item");
+
+    const head = el("div", "history-head");
+    const when = new Date(row.created_at);
+    head.appendChild(
+      el("span", "history-date", when.toLocaleString(undefined, {
+        dateStyle: "medium", timeStyle: "short",
+      }))
+    );
+    head.appendChild(badge(bandStatus(row.overall_band)));
+    card.appendChild(head);
+
+    const scores = el("div", "history-scores");
+    [["Overall", row.overall_index], ["ACL", row.acl_index],
+     ["MCL", row.mcl_index], ["PCL", row.pcl_index]].forEach(([label, value]) => {
+      const cell = el("div", "history-score");
+      cell.appendChild(el("span", "history-score-label", label));
+      cell.appendChild(el("span", "history-score-value",
+        value === null || value === undefined ? "—" : String(Math.round(value))));
+      scores.appendChild(cell);
+    });
+    card.appendChild(scores);
+
+    const meta = [];
+    if (row.acwr !== null && row.acwr !== undefined) meta.push(`ACWR ${Number(row.acwr).toFixed(2)}`);
+    if (row.surface) meta.push(row.surface.replace("_", " "));
+    if (row.soreness !== null && row.soreness !== undefined) meta.push(`soreness ${row.soreness}/10`);
+    if (row.scan && row.scan.frames_analysed) {
+      meta.push(row.scan.frontal_view
+        ? `valgus ${row.scan.peak_valgus_deg}°`
+        : "scan: not front-on");
+    }
+    if (meta.length) card.appendChild(el("p", "history-meta", meta.join(" · ")));
+
+    const remove = el("button", "btn btn-ghost history-delete", "Delete");
+    remove.type = "button";
+    remove.addEventListener("click", async () => {
+      remove.disabled = true;
+      const { error } = await accounts.client
+        .from("assessments").delete().eq("id", row.id);
+      if (error) {
+        remove.disabled = false;
+        remove.textContent = "Delete failed";
+        return;
+      }
+      card.remove();
+    });
+    card.appendChild(remove);
+
+    return card;
+  }
+
+  /** Map a stored band label back to a status role for the badge. */
+  function bandStatus(band) {
+    return { low: "good", moderate: "warning", high: "serious", critical: "critical" }[band]
+      || "good";
+  }
+
+  async function openHistory() {
+    openModal("history-dialog");
+    const list = $("history-list");
+    list.replaceChildren(el("p", "history-empty", "Loading…"));
+
+    const { data, error } = await accounts.client
+      .from("assessments")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      list.replaceChildren(el("p", "history-empty", `Could not load history: ${error.message}`));
+      return;
+    }
+    if (!data || !data.length) {
+      list.replaceChildren(
+        el("p", "history-empty", "Nothing saved yet. Run an assessment while signed in.")
+      );
+      return;
+    }
+    $("history-sub").textContent = `${data.length} saved · newest first`;
+    list.replaceChildren(...data.map(historyCard));
+  }
+
+  function bindAccounts() {
+    $("account-signin").addEventListener("click", () => {
+      setAuthMode("signin");
+      openModal("auth-dialog");
+      $("auth-email").focus();
+    });
+    $("account-signout").addEventListener("click", async () => {
+      await accounts.client.auth.signOut();
+    });
+    $("account-history").addEventListener("click", openHistory);
+
+    $("auth-close").addEventListener("click", () => closeModal("auth-dialog"));
+    $("history-close").addEventListener("click", () => closeModal("history-dialog"));
+    $("auth-toggle").addEventListener("click", () =>
+      setAuthMode(accounts.mode === "signup" ? "signin" : "signup"));
+    $("auth-form").addEventListener("submit", submitAuth);
+
+    // Click the backdrop or press Escape to dismiss.
+    ["auth-dialog", "history-dialog"].forEach((id) => {
+      $(id).addEventListener("click", (event) => {
+        if (event.target === $(id)) closeModal(id);
+      });
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      ["auth-dialog", "history-dialog"].forEach((id) => {
+        if (!$(id).hidden) closeModal(id);
+      });
+    });
+  }
+
   /* ── Boot ───────────────────────────────────────────────────────── */
 
   async function boot() {
@@ -769,6 +1068,7 @@
     bindScanner();
     bindTabs();
     bindCamera();
+    bindAccounts();
     $("assess-btn").addEventListener("click", assess);
 
     try {
@@ -794,6 +1094,7 @@
       const reference = await api("/api/reference");
       state.bands = reference.bands;
       state.surfaces = reference.surfaces;
+      initAccounts(reference.supabase);
 
       const select = $("surface-select");
       select.replaceChildren();

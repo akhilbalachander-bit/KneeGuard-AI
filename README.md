@@ -249,6 +249,63 @@ of a squat is a valid (if less informative) scan.
 
 ---
 
+## Accounts and saved history (optional)
+
+Sign-in and a per-athlete history of past scorecards, backed by **Supabase**.
+Entirely optional — with no Supabase configured, the account controls never
+render and the rest of the app is unchanged.
+
+### Setup
+
+1. Create a project at [supabase.com](https://supabase.com) (free tier is fine).
+2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql),
+   and run it. That creates the tables, the indexes, and the Row Level Security
+   policies.
+3. **Authentication → Providers → Email**: make sure Email is enabled. For a
+   hackathon, also turn *off* "Confirm email" so signup is instant — otherwise
+   every judge who tries it needs a working inbox.
+4. **Project Settings → API**: copy the **Project URL** and the **anon / public**
+   key into your `.env`:
+
+   ```bash
+   SUPABASE_URL=https://xxxxxxxx.supabase.co
+   SUPABASE_ANON_KEY=eyJhbGci...
+   ```
+
+5. Restart the server. A **Sign in** button appears in the header.
+
+### How it is wired
+
+The browser talks to Supabase directly with the Supabase JS client; FastAPI
+stays stateless and never sees a password or a token. **Row Level Security is
+the entire security model** — every policy in `schema.sql` is scoped to
+`auth.uid()`, so a user can only ever read, insert, or delete their own rows.
+
+That is why only the **anon** key is used. It is meant to be public and ships in
+the page. The **service_role** key bypasses RLS completely and must never appear
+in the frontend, in `.env` here, or in the repo.
+
+### What gets stored — and what does not
+
+Saved: the questionnaire answers, the derived ACWR, the per-ligament indices and
+bands, the action plan, the explanation, and the **numeric** summary of the
+movement scan (valgus angle, KASR, landing flexion, notes).
+
+**Never saved: the photo or video.** The app does not write uploaded media to
+disk, and it does not go to the database either. These are frequently minors
+being filmed mid-squat; a screening tool has no business retaining that footage.
+A test asserts the payload the browser persists contains no image data.
+
+There is deliberately **no UPDATE policy** on `assessments`: a past assessment
+records what was measured at a point in time, and letting it be edited would
+make the history untrustworthy.
+
+Note that what *is* stored — age, sex, injury history — is health-adjacent
+personal data about minors. If this goes past a hackathon, that deserves a
+proper look at consent and retention.
+
+---
+
 ## Deploying it
 
 **This is not a static site.** It is a Python server that runs MediaPipe pose
@@ -363,6 +420,7 @@ provision.
 ## Layout
 
 ```
+supabase/schema.sql  # tables + Row Level Security policies
 kneeguard/
   biomechanics.py    # pure geometry: FPPA, KASR, flexion, trunk lean, view check
   pose_analysis.py   # MediaPipe Tasks wrapper + annotated overlay rendering
@@ -374,7 +432,7 @@ kneeguard/
   api.py             # FastAPI routes + static hosting
 web/                 # dashboard (vanilla HTML/CSS/JS, no build step)
 scripts/             # fetch_pose_model.py, train_model.py
-tests/               # 84 tests: geometry, model behaviour, fusion, HTTP, WebM
+tests/               # 88 tests: geometry, model behaviour, fusion, HTTP, WebM
 ```
 
 ## Tests

@@ -99,6 +99,13 @@ def reference() -> dict:
             for key, scenario in DEMO_SCENARIOS.items()
         ],
         "model_metrics": model.metrics,
+        # The anon key is meant for the browser; Row Level Security is what
+        # protects the data. Accounts stay hidden when this is not configured.
+        "supabase": {
+            "enabled": config.supabase_configured(),
+            "url": config.SUPABASE_URL,
+            "anon_key": config.SUPABASE_ANON_KEY,
+        },
         "bands": [
             {"label": label, "min": threshold, "colour": colour, "status": status}
             for threshold, label, colour, status in reversed(RISK_BANDS)

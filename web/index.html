@@ -19,6 +19,12 @@
       </div>
       <div class="masthead-actions">
         <span id="health-pill" class="pill pill-muted">checking…</span>
+        <div id="account-area" class="account-area" hidden>
+          <span id="account-email" class="account-email"></span>
+          <button id="account-history" class="btn btn-ghost" type="button" hidden>History</button>
+          <button id="account-signin" class="btn" type="button">Sign in</button>
+          <button id="account-signout" class="btn btn-ghost" type="button" hidden>Sign out</button>
+        </div>
         <button id="theme-toggle" class="btn btn-ghost" type="button" aria-label="Toggle colour theme">☾</button>
       </div>
     </div>
@@ -233,6 +239,8 @@
           </div>
         </div>
 
+        <p id="save-hint" class="save-hint" hidden role="status"></p>
+
         <!-- Ligament stat tiles -->
         <h3 class="section-title">Ligament breakdown</h3>
         <div class="tiles" id="ligament-tiles"></div>
@@ -279,6 +287,55 @@
     </section>
   </main>
 
+  <!-- ── Sign in / sign up ───────────────────────────────────────────── -->
+  <div id="auth-dialog" class="modal" hidden role="dialog" aria-modal="true"
+       aria-labelledby="auth-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="auth-title">Sign in</h2>
+        <button id="auth-close" class="btn btn-ghost" type="button" aria-label="Close">✕</button>
+      </div>
+      <p class="modal-sub">
+        Save your scorecards and compare them over a season.
+      </p>
+
+      <form id="auth-form" class="form">
+        <label class="field">
+          <span class="field-label">Email</span>
+          <input type="email" id="auth-email" autocomplete="email" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Password</span>
+          <input type="password" id="auth-password" autocomplete="current-password"
+                 minlength="6" required />
+          <span class="field-hint">At least 6 characters.</span>
+        </label>
+
+        <p id="auth-error" class="auth-error" hidden role="alert"></p>
+
+        <div class="modal-actions">
+          <button id="auth-submit" class="btn btn-primary" type="submit">Sign in</button>
+          <button id="auth-toggle" class="btn btn-ghost" type="button">
+            Create an account instead
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Saved history ──────────────────────────────────────────────── -->
+  <div id="history-dialog" class="modal" hidden role="dialog" aria-modal="true"
+       aria-labelledby="history-title">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-head">
+        <h2 id="history-title">Your saved assessments</h2>
+        <button id="history-close" class="btn btn-ghost" type="button" aria-label="Close">✕</button>
+      </div>
+      <p class="modal-sub" id="history-sub">Newest first.</p>
+      <div id="history-list" class="history-list"></div>
+    </div>
+  </div>
+
   <footer class="footer">
     <p>
       KneeGuard AI · scikit-learn workload model + MediaPipe Pose biomechanics.
@@ -287,6 +344,10 @@
     </p>
   </footer>
 
+  <!-- Supabase powers the optional accounts feature. Loaded from a CDN so the
+       project keeps its no-build-step setup; if it fails to load, the app
+       carries on without accounts rather than breaking. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

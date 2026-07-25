@@ -32,4 +32,18 @@ MAX_VIDEO_FRAMES = int(os.environ.get("KNEEGUARD_MAX_VIDEO_FRAMES", 120))
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 CLAUDE_MODEL = os.environ.get("KNEEGUARD_CLAUDE_MODEL", "claude-opus-5")
 
+# Supabase (optional). Accounts and saved history switch themselves off when
+# these are unset, so the app still runs standalone.
+#
+# Only the *anon* key belongs here. It is designed to reach the browser and is
+# safe there because Row Level Security decides what each user can read. The
+# service_role key must never be used by this app: it bypasses RLS entirely.
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "").strip()
+
+
+def supabase_configured() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_ANON_KEY)
+
+
 RANDOM_SEED = 20260725

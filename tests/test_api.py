@@ -211,3 +211,55 @@ def test_scan_of_an_image_without_a_person_is_handled(client):
     fused = client.post("/api/assess", json={"scan_id": body["scan_id"]}).json()
     for ligament in fused["ligaments"]:
         assert ligament["biomechanical_shift"] == 0.0
+
+
+# --- Supabase configuration surface -----------------------------------------
+
+
+def test_supabase_reported_as_disabled_when_unset(client, monkeypatch):
+    """Accounts must switch themselves off rather than half-render."""
+    from kneeguard import config
+
+    monkeypatch.setattr(config, "SUPABASE_URL", "")
+    monkeypatch.setattr(config, "SUPABASE_ANON_KEY", "")
+    body = client.get("/api/reference").json()["supabase"]
+    assert body["enabled"] is False
+
+
+def test_supabase_config_is_exposed_when_set(client, monkeypatch):
+    from kneeguard import config
+
+    monkeypatch.setattr(config, "SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setattr(config, "SUPABASE_ANON_KEY", "anon-key-123")
+    body = client.get("/api/reference").json()["supabase"]
+    assert body == {
+        "enabled": True,
+        "url": "https://example.supabase.co",
+        "anon_key": "anon-key-123",
+    }
+
+
+def test_only_the_anon_key_is_ever_exposed(client, monkeypatch):
+    """The service_role key bypasses RLS; it must never reach the browser."""
+    from kneeguard import config
+
+    monkeypatch.setattr(config, "SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setattr(config, "SUPABASE_ANON_KEY", "anon-key-123")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role-secret")
+
+    payload = client.get("/api/reference").text
+    assert "service-role-secret" not in payload
+    assert "service_role" not in payload
+
+
+def test_assessment_response_carries_no_media_for_storage(client):
+    """What the browser saves must not contain image data."""
+    scan = client.post("/api/scan/demo/valgus_collapse").json()
+    report = client.post("/api/assess", json={"scan_id": scan["scan_id"]}).json()
+
+    assert report["scan"] is not None
+    assert "overlay_image" not in report["scan"]
+    assert "overlay_image_b64" not in report["scan"]
+    # Nothing base64-ish anywhere in the payload the client persists.
+    import json as _json
+    assert "data:image" not in _json.dumps(report)
