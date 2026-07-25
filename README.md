@@ -249,6 +249,88 @@ of a squat is a valid (if less informative) scan.
 
 ---
 
+## Deploying it
+
+**This is not a static site.** It is a Python server that runs MediaPipe pose
+detection and scikit-learn inference on every request. Dropping the `web/`
+folder onto GitHub Pages, Netlify drop, or Vercel-static will serve the
+dashboard and even let the camera record — then every scan and assessment will
+fail, because there is no `/api` behind it. You need a host that runs a
+container or a Python process.
+
+Upshot: **push the whole repository and let the host build the `Dockerfile`.**
+There is no "files to upload" folder.
+
+One genuine bonus of hosting it: every platform below terminates TLS for you,
+so the page is served over HTTPS and the in-browser camera works on phones with
+no certificate warnings — the problem `./run.sh --https` exists to solve
+locally goes away.
+
+### Why a Dockerfile rather than a plain Python buildpack
+
+MediaPipe's Tasks runtime `dlopen()`s the GLES/EGL client libraries even for
+CPU-only inference. On an image without them, the first pose call dies with:
+
+```
+OSError: libGLESv2.so.2: cannot open shared object file: No such file or directory
+```
+
+`pip install mediapipe` does not pull those in — they are system packages. The
+`Dockerfile` installs `libgles2`, `libegl1` and `libglib2.0-0`, which is the
+difference between a working deploy and a container that starts fine and then
+500s on the first scan. Most "deploy a Python app" buildpacks give you no way
+to add them.
+
+### Recommended: Hugging Face Spaces (free, no card)
+
+Good fit for a hackathon: free CPU tier with far more RAM than most free
+tiers, a public HTTPS URL judges can open, and native Docker support.
+
+1. Create a Space → SDK **Docker** → **Blank**.
+2. Push this repository to the Space's git remote.
+3. Add this frontmatter to the top of the Space's `README.md`:
+
+   ```yaml
+   ---
+   title: KneeGuard AI
+   sdk: docker
+   app_port: 8000
+   ---
+   ```
+4. Optional: add `ANTHROPIC_API_KEY` under Settings → Secrets for
+   Claude-written explanations.
+
+### Alternative: Render
+
+`render.yaml` is included, so **New → Blueprint** pointed at the repo picks up
+everything. Health check is wired to `/api/health`.
+
+Watch the memory: the free plan caps at 512 MB and MediaPipe + OpenCV +
+scikit-learn loaded together sit close to it. If the service restarts mid-scan,
+that is what happened — move up a plan.
+
+### Anything else that takes a Dockerfile
+
+Fly.io, Google Cloud Run, Railway, and Azure Container Apps all work from the
+same `Dockerfile` with no changes. The container reads `$PORT`, which is what
+each of these injects.
+
+### What the image does at build time
+
+Both models are baked in — the ~6 MB MediaPipe bundle is downloaded and the
+risk model is trained during `docker build`. The container therefore needs no
+network at boot and the first request is not slow.
+
+### Sizing expectations
+
+Analysis is CPU-bound: a 3-second clip is roughly 60–90 frames of pose
+inference. On a free shared-CPU tier expect a few seconds per scan, so demo
+with short clips. Photo scans are near-instant. Uploads are never written to
+disk, and scans live in a bounded in-memory cache, so there is no storage to
+provision.
+
+---
+
 ## Layout
 
 ```

@@ -1,0 +1,23 @@
+.git
+.gitignore
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.venv
+venv
+node_modules
+
+# Regenerated inside the image by the build.
+models/*.task
+models/*.joblib
+
+# Local-only artefacts.
+certs/
+uploads/
+samples/*.jpg
+samples/*.jpeg
+samples/*.png
+samples/*.mp4
+samples/*.mov
+*.bundle

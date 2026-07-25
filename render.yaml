@@ -1,0 +1,24 @@
+# Render blueprint — https://render.com/docs/blueprint-spec
+#
+# Docker is used rather than a native Python runtime because MediaPipe needs
+# system libraries (libgles2, libegl1) that a plain buildpack will not install.
+#
+# Note on the free plan: it caps at 512 MB RAM, and MediaPipe + OpenCV +
+# scikit-learn loaded together sit close to that. If the service restarts
+# during a video scan, move to the starter plan.
+services:
+  - type: web
+    name: kneeguard-ai
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # Render injects PORT; the container already honours it.
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      # Optional — set in the dashboard to have Claude write the explanations.
+      # Without it the app falls back to its built-in rule-based writer.
+      - key: ANTHROPIC_API_KEY
+        sync: false
