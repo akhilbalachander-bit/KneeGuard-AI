@@ -31,8 +31,13 @@
     return node;
   }
 
+  /** Absolute API origin when the frontend is hosted apart from the backend. */
+  const API_BASE = (window.KNEEGUARD_API_BASE || "").replace(/\/$/, "");
+
+  const apiUrl = (path) => API_BASE + path;
+
   async function api(path, options) {
-    const response = await fetch(path, options);
+    const response = await fetch(apiUrl(path), options);
     if (!response.ok) {
       let detail = `Request failed (${response.status})`;
       try {

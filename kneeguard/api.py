@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -47,6 +48,18 @@ app = FastAPI(
         "modelling with MediaPipe-based landing biomechanics."
     ),
 )
+
+# Only added when origins are configured, so the default deployment exposes no
+# CORS headers and stays same-origin.
+if config.CORS_ALLOW_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.CORS_ALLOW_ORIGINS,
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+    )
+    log.info("CORS enabled for: %s", ", ".join(config.CORS_ALLOW_ORIGINS))
 
 # Scans are held in memory only long enough for the client to attach them to an
 # assessment. Nothing about the athlete is persisted to disk — a screening tool

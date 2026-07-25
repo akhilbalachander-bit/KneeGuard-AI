@@ -42,6 +42,17 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "").strip()
 
 
+# Cross-origin frontends (e.g. the dashboard on Vercel, this API on Render).
+# Comma-separated exact origins. Empty means same-origin only and no CORS
+# headers at all — the safe default, since a wide-open API would let any site
+# drive someone's camera uploads through it.
+CORS_ALLOW_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
+
 def supabase_configured() -> bool:
     return bool(SUPABASE_URL and SUPABASE_ANON_KEY)
 
