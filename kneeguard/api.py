@@ -30,6 +30,10 @@ log = logging.getLogger("kneeguard")
 async def lifespan(_: FastAPI):
     """Warm the risk model at boot so the first assessment is not slow."""
     get_model()
+    if config.SUPABASE_URL_WARNING:
+        log.warning(config.SUPABASE_URL_WARNING)
+    if config.supabase_configured():
+        log.info("Supabase accounts enabled for %s", config.SUPABASE_URL)
     if not config.POSE_MODEL_PATH.exists():
         log.warning(
             "Pose model missing at %s — the scanner will be unavailable. "

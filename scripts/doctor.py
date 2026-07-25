@@ -82,6 +82,34 @@ def main() -> int:
     bundle_ok = check("pose model bundle", pose_bundle)
     check("workload risk model", risk_model)
 
+    def supabase_config():
+        from kneeguard import config
+        if not config.SUPABASE_URL and not config.SUPABASE_ANON_KEY:
+            return "not configured (accounts disabled)"
+        if config.SUPABASE_URL_WARNING:
+            raise ValueError(config.SUPABASE_URL_WARNING)
+        if not config.SUPABASE_URL:
+            raise ValueError("SUPABASE_ANON_KEY is set but SUPABASE_URL is empty")
+        if not config.SUPABASE_ANON_KEY:
+            raise ValueError("SUPABASE_URL is set but SUPABASE_ANON_KEY is empty")
+        if not config.SUPABASE_URL.endswith(".supabase.co"):
+            raise ValueError(
+                f"SUPABASE_URL is {config.SUPABASE_URL!r}; expected "
+                "https://<project-ref>.supabase.co"
+            )
+        key = config.SUPABASE_ANON_KEY
+        kind = ("publishable" if key.startswith("sb_publishable_")
+                else "legacy anon" if key.startswith("ey")
+                else "UNRECOGNISED")
+        if key.startswith("sb_secret_") or key.startswith("service_role"):
+            raise ValueError(
+                "SUPABASE_ANON_KEY holds a SECRET key. That bypasses Row Level "
+                "Security and must never reach the browser. Use the Publishable key."
+            )
+        return f"{config.SUPABASE_URL} ({kind} key)"
+
+    check("supabase configuration", supabase_config)
+
     # --- The step that actually breaks in containers ------------------------
     # Creating the landmarker is what dlopen()s libGLESv2/libEGL.
     if mediapipe_ok and bundle_ok:
