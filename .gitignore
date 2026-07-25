@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.DS_Store
+
+# MediaPipe model bundle is fetched at setup time (~6 MB), not committed.
+models/pose_landmarker*.task
+
+# Trained bundle is derived — scripts/train_model.py rebuilds it deterministically.
+models/*.joblib
+
+# Local test media (see samples/README.md); not redistributed with the repo.
+samples/*.jpg
+samples/*.jpeg
+samples/*.png
+samples/*.mp4
+samples/*.mov
+
+# Uploaded media / generated overlays
+uploads/
+web/assets/generated/

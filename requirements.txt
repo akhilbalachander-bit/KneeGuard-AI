@@ -1,0 +1,18 @@
+# KneeGuard AI — runtime dependencies
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+pydantic>=2.7
+
+# Risk model
+scikit-learn>=1.5
+numpy>=1.26
+joblib>=1.4
+
+# Computer vision / pose estimation
+mediapipe>=0.10.14
+opencv-python-headless>=4.9
+
+# Optional: narrative explanations via the Claude API.
+# The app runs fully offline without this (deterministic fallback narrative).
+anthropic>=0.40

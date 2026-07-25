@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KneeGuard AI — Knee Ligament Risk Screening</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🦵</text></svg>" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">◑</span>
+        <div>
+          <h1>KneeGuard AI</h1>
+          <p class="brand-sub">ACL · MCL · PCL risk screening for soccer</p>
+        </div>
+      </div>
+      <div class="masthead-actions">
+        <span id="health-pill" class="pill pill-muted">checking…</span>
+        <button id="theme-toggle" class="btn btn-ghost" type="button" aria-label="Toggle colour theme">☾</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ── 1. Workload questionnaire ─────────────────────────────────── -->
+    <section class="panel" aria-labelledby="workload-heading">
+      <div class="panel-head">
+        <span class="step">1</span>
+        <div>
+          <h2 id="workload-heading">Workload &amp; recovery</h2>
+          <p class="panel-sub">The load your knees have absorbed this week.</p>
+        </div>
+      </div>
+
+      <form id="workload-form" class="form">
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Age</span>
+            <input type="number" name="age" min="8" max="60" value="17" required />
+          </label>
+          <label class="field">
+            <span class="field-label">Sex</span>
+            <select name="sex">
+              <option value="unspecified">Prefer not to say</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+            <span class="field-hint">Female athletes tear the ACL at 2–8× the rate of male athletes in matched sports.</span>
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Minutes played — last 7 days</span>
+            <input type="number" name="minutes_last_7d" min="0" max="1500" value="330" required />
+          </label>
+          <label class="field">
+            <span class="field-label">Minutes — previous 4 weeks</span>
+            <input type="number" name="minutes_prior_28d" min="0" max="6000" value="800" required />
+          </label>
+        </div>
+
+        <div class="acwr-readout" id="acwr-readout" role="status">
+          <span class="acwr-label">Acute : chronic workload ratio</span>
+          <span class="acwr-value" id="acwr-value">—</span>
+          <span class="acwr-note" id="acwr-note"></span>
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Consecutive days played</span>
+            <input type="number" name="consecutive_days" min="0" max="21" value="4" required />
+          </label>
+          <label class="field">
+            <span class="field-label">Playing surface</span>
+            <select name="surface" id="surface-select"></select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field-label">
+            Muscle soreness <output id="soreness-out" class="slider-out">7</output><span class="field-unit"> / 10</span>
+          </span>
+          <input type="range" name="soreness" id="soreness" min="1" max="10" value="7" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">
+            Sleep <output id="sleep-out" class="slider-out">6.5</output><span class="field-unit"> h / night</span>
+          </span>
+          <input type="range" name="sleep_hours" id="sleep_hours" min="4" max="11" step="0.5" value="6.5" />
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Heavy collisions this week</span>
+            <input type="number" name="contact_events" min="0" max="50" value="4" required />
+          </label>
+          <label class="field">
+            <span class="field-label">Sliding tackles this week</span>
+            <input type="number" name="slide_tackles" min="0" max="50" value="2" required />
+          </label>
+        </div>
+
+        <label class="checkbox">
+          <input type="checkbox" name="prior_injury" />
+          <span>Previous knee ligament injury</span>
+        </label>
+      </form>
+    </section>
+
+    <!-- ── 2. Pose scanner ───────────────────────────────────────────── -->
+    <section class="panel" aria-labelledby="scan-heading">
+      <div class="panel-head">
+        <span class="step">2</span>
+        <div>
+          <h2 id="scan-heading">Movement scan</h2>
+          <p class="panel-sub">MediaPipe reads hip, knee and ankle to measure how the knee tracks.</p>
+        </div>
+      </div>
+
+      <div id="dropzone" class="dropzone" tabindex="0" role="button"
+           aria-describedby="dropzone-hint">
+        <span class="dropzone-icon" aria-hidden="true">⤒</span>
+        <strong>Drop a photo or 2–3 s clip</strong>
+        <span id="dropzone-hint" class="dropzone-hint">
+          Front-on, full body in frame, at the bottom of a drop-jump or squat.
+        </span>
+        <input type="file" id="file-input" accept="image/*,video/*" hidden />
+      </div>
+
+      <div class="demo-block">
+        <p class="demo-label">No clip to hand? Load a synthetic scan:</p>
+        <div id="demo-buttons" class="demo-buttons"></div>
+      </div>
+
+      <div id="scan-status" class="scan-status" role="status" aria-live="polite"></div>
+      <div id="scan-result" class="scan-result" hidden></div>
+    </section>
+
+    <!-- ── 3. Results dashboard ──────────────────────────────────────── -->
+    <section class="panel panel-wide" aria-labelledby="results-heading">
+      <div class="panel-head">
+        <span class="step">3</span>
+        <div>
+          <h2 id="results-heading">Risk scorecard</h2>
+          <p class="panel-sub">Workload model fused with the movement scan.</p>
+        </div>
+        <button id="assess-btn" class="btn btn-primary" type="button">Assess risk</button>
+      </div>
+
+      <div id="results-empty" class="empty-state">
+        <p>Fill in the workload panel and press <strong>Assess risk</strong>.</p>
+        <p class="empty-sub">A movement scan is optional — it sharpens the ACL and MCL estimates.</p>
+      </div>
+
+      <div id="results" hidden>
+        <!-- Hero figure + meter -->
+        <div class="hero">
+          <div class="hero-figure">
+            <span class="hero-label">Overall risk index</span>
+            <span class="hero-value" id="hero-value">—</span>
+            <span class="hero-scale">/ 100 percentile</span>
+          </div>
+          <div class="hero-meter">
+            <div class="meter" role="img" id="hero-meter-wrap" aria-label="Overall risk meter">
+              <div class="meter-track">
+                <div class="meter-fill" id="hero-meter-fill"></div>
+              </div>
+              <div class="meter-ticks" id="meter-ticks"></div>
+            </div>
+            <p class="hero-caption" id="hero-caption"></p>
+          </div>
+        </div>
+
+        <!-- Ligament stat tiles -->
+        <h3 class="section-title">Ligament breakdown</h3>
+        <div class="tiles" id="ligament-tiles"></div>
+
+        <!-- Claude explanation -->
+        <div class="explain-card" id="explain-card" hidden>
+          <div class="explain-head">
+            <h3>What this means</h3>
+            <span class="pill pill-muted" id="explain-source"></span>
+          </div>
+          <p class="explain-headline" id="explain-headline"></p>
+          <p class="explain-body" id="explain-why"></p>
+          <p class="explain-body explain-movement" id="explain-movement"></p>
+        </div>
+
+        <!-- Action plan -->
+        <h3 class="section-title">Action plan — next 7 days</h3>
+        <div class="plan" id="action-plan"></div>
+
+        <!-- Detail table -->
+        <details class="detail">
+          <summary>Full numbers &amp; model detail</summary>
+          <div class="table-scroll">
+            <table id="detail-table">
+              <caption class="sr-only">Per-ligament risk detail</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Ligament</th>
+                  <th scope="col">Risk index</th>
+                  <th scope="col">Workload only</th>
+                  <th scope="col">Scan shift</th>
+                  <th scope="col">Modelled probability</th>
+                  <th scope="col">Band</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="model-metrics" class="metrics"></div>
+        </details>
+
+        <p class="disclaimer" id="disclaimer"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>
+      KneeGuard AI · scikit-learn workload model + MediaPipe Pose biomechanics.
+      The risk index is a percentile against a synthetic reference cohort — a
+      screening aid, not a diagnosis.
+    </p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
