@@ -7,6 +7,17 @@ from pathlib import Path
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = PACKAGE_DIR.parent
+
+# Load .env for local development, before anything reads os.environ below.
+# override=False means a real environment variable always beats the file, so
+# deploying with host-managed settings (Hugging Face Spaces, Render) behaves
+# the same whether or not a .env happens to be present.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(ROOT_DIR / ".env", override=False)
+except ImportError:  # python-dotenv is optional; env vars still work without it
+    pass
 MODELS_DIR = ROOT_DIR / "models"
 WEB_DIR = ROOT_DIR / "web"
 SAMPLES_DIR = ROOT_DIR / "samples"

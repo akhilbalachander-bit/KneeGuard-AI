@@ -13,6 +13,10 @@ joblib>=1.4
 mediapipe>=0.10.14
 opencv-python-headless>=4.9
 
+# Reads .env for local development. Real environment variables always win, so
+# a host's own settings (Spaces, Render) are never overridden by a stray file.
+python-dotenv>=1.0
+
 # Optional: narrative explanations via the Claude API.
 # The app runs fully offline without this (deterministic fallback narrative).
 anthropic>=0.40
