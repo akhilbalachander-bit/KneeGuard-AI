@@ -784,6 +784,20 @@
     lastReport: null,
   };
 
+  let toastTimer = null;
+
+  /** Brief confirmation banner — auth state changes are otherwise invisible. */
+  function showToast(message, kind) {
+    const node = $("toast");
+    node.replaceChildren();
+    node.appendChild(el("span", "toast-icon", kind === "in" ? "\u25CF" : "\u25CB"));
+    node.appendChild(document.createTextNode(message));
+    node.dataset.kind = kind || "in";
+    node.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { node.hidden = true; }, 4000);
+  }
+
   function accountsReady() {
     return Boolean(accounts.client);
   }
@@ -804,8 +818,14 @@
     accounts.client.auth.getSession().then(({ data }) => {
       setUser(data && data.session ? data.session.user : null);
     });
-    accounts.client.auth.onAuthStateChange((_event, session) => {
+    accounts.client.auth.onAuthStateChange((event, session) => {
       setUser(session ? session.user : null);
+      // INITIAL_SESSION fires on every page load; only announce real changes.
+      if (event === "SIGNED_IN") {
+        showToast(`Signed in as ${session.user.email}`, "in");
+      } else if (event === "SIGNED_OUT") {
+        showToast("Signed out", "out");
+      }
     });
   }
 
@@ -813,7 +833,7 @@
     accounts.user = user;
     const signedIn = Boolean(user);
 
-    $("account-email").textContent = signedIn ? user.email : "";
+    $("account-email").textContent = signedIn ? `Signed in · ${user.email}` : "";
     $("account-email").hidden = !signedIn;
     $("account-signin").hidden = signedIn;
     $("account-signout").hidden = !signedIn;
@@ -907,7 +927,14 @@
     $("auth-password").setAttribute(
       "autocomplete", signup ? "new-password" : "current-password"
     );
-    $("auth-error").hidden = true;
+    // Deliberately does not touch #auth-error: this is called *after* setting
+    // messages like "account created", and clearing here hid them instantly.
+  }
+
+  function setAuthNotice(message) {
+    const node = $("auth-error");
+    node.hidden = !message;
+    node.textContent = message || "";
   }
 
   async function submitAuth(event) {
@@ -915,9 +942,8 @@
     const email = $("auth-email").value.trim();
     const password = $("auth-password").value;
     const button = $("auth-submit");
-    const error = $("auth-error");
 
-    error.hidden = true;
+    setAuthNotice("");
     button.disabled = true;
     button.textContent = accounts.mode === "signup" ? "Creating…" : "Signing in…";
 
@@ -933,20 +959,19 @@
       // With email confirmation switched on, signUp returns a user but no
       // session — say so rather than looking like nothing happened.
       if (accounts.mode === "signup" && data && data.user && !data.session) {
-        error.hidden = false;
-        error.textContent =
-          "Account created. Check your email to confirm it, then sign in.";
         setAuthMode("signin");
+        setAuthNotice(
+          "Account created. Confirm it from the email we sent, then sign in."
+        );
         return;
       }
       closeModal("auth-dialog");
       $("auth-form").reset();
     } catch (exc) {
-      error.hidden = false;
-      error.textContent = exc.message;
+      setAuthNotice(exc.message);
     } finally {
       button.disabled = false;
-      setAuthMode(accounts.mode);
+      button.textContent = accounts.mode === "signup" ? "Create account" : "Sign in";
     }
   }
 
@@ -1037,6 +1062,7 @@
   function bindAccounts() {
     $("account-signin").addEventListener("click", () => {
       setAuthMode("signin");
+      setAuthNotice("");
       openModal("auth-dialog");
       $("auth-email").focus();
     });
@@ -1047,8 +1073,10 @@
 
     $("auth-close").addEventListener("click", () => closeModal("auth-dialog"));
     $("history-close").addEventListener("click", () => closeModal("history-dialog"));
-    $("auth-toggle").addEventListener("click", () =>
-      setAuthMode(accounts.mode === "signup" ? "signin" : "signup"));
+    $("auth-toggle").addEventListener("click", () => {
+      setAuthMode(accounts.mode === "signup" ? "signin" : "signup");
+      setAuthNotice("");
+    });
     $("auth-form").addEventListener("submit", submitAuth);
 
     // Click the backdrop or press Escape to dismiss.
