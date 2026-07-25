@@ -1,0 +1,31 @@
+{
+  "name": "KneeGuard AI",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
+
+  // MediaPipe's Tasks runtime dlopen()s the GLES/EGL client libraries even for
+  // CPU-only inference, and pip cannot install them. Without these the first
+  // pose call fails with "libGLESv2.so.2: cannot open shared object file".
+  // Both models are built here so the first scan is not slow.
+  // glib is named libglib2.0-0 on Debian bookworm and libglib2.0-0t64 on newer
+  // releases, so it is attempted best-effort — a miss must not abort the chain
+  // and leave the container with no Python dependencies installed.
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends libgles2 libegl1 && { sudo apt-get install -y --no-install-recommends libglib2.0-0 || sudo apt-get install -y --no-install-recommends libglib2.0-0t64 || true; } && pip install --user -r requirements.txt && python scripts/fetch_pose_model.py && python scripts/train_model.py",
+
+  "postAttachCommand": {
+    "hint": "echo '\\n  Ready. Start it with:  uvicorn kneeguard.api:app --host 0.0.0.0 --port 8000\\n  Then open the forwarded port 8000, and set its visibility to Public to use a phone camera.\\n'"
+  },
+
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "KneeGuard AI",
+      "onAutoForward": "notify"
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python"]
+    }
+  }
+}

@@ -281,6 +281,32 @@ difference between a working deploy and a container that starts fine and then
 500s on the first scan. Most "deploy a Python app" buildpacks give you no way
 to add them.
 
+### "Can't I just use GitHub?"
+
+Depends which GitHub product:
+
+| | Runs the Python server? |
+|---|---|
+| **GitHub Pages** | ❌ Static files only — the dashboard loads, every `/api` call 404s |
+| **GitHub Actions** | ⚠️ It's CI. It can *build and deploy* to a host, but hosts nothing itself |
+| **GitHub Codespaces** | ✅ Yes — a real Linux container with a public HTTPS URL |
+
+**Codespaces is a genuine option**, and needs no third-party signup.
+`.devcontainer/devcontainer.json` is included, so *Code → Codespaces → Create*
+installs the system libraries, the Python dependencies, and both models. Then:
+
+```bash
+uvicorn kneeguard.api:app --host 0.0.0.0 --port 8000
+```
+
+Open the forwarded port 8000 from the **Ports** panel. To use it from a phone,
+right-click that port and set **Port Visibility → Public** — the forwarded URL
+is HTTPS, so the camera works with no certificate warnings.
+
+Caveats: Codespaces bills against a monthly free allowance and the machine
+stops when you disconnect, so it suits development and a quick share rather
+than a link that stays up. For a URL that lives on, use a host below.
+
 ### Recommended: Hugging Face Spaces (free, no card)
 
 Good fit for a hackathon: free CPU tier with far more RAM than most free
