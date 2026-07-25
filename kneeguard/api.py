@@ -152,6 +152,18 @@ async def scan(file: UploadFile = File(...)) -> ScanResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        # An unhandled error here reaches the browser as a bare "500" with no
+        # body, which tells the user nothing. Log the traceback and hand back
+        # something they can act on or quote.
+        log.exception("Scan failed for %r", file.filename)
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Analysis failed: {type(exc).__name__}: {exc}. "
+                "The full traceback is in the server log."
+            ),
+        ) from exc
 
     scan_id = _remember(report)
     return ScanResponse(

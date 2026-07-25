@@ -103,7 +103,23 @@ def _get_landmarker():
         min_pose_presence_confidence=0.5,
         min_tracking_confidence=0.5,
     )
-    _landmarker = vision.PoseLandmarker.create_from_options(options)
+
+    try:
+        _landmarker = vision.PoseLandmarker.create_from_options(options)
+    except OSError as exc:
+        # MediaPipe dlopen()s the GLES/EGL client libraries even for CPU-only
+        # inference. Missing them is by far the most common deployment
+        # failure, and without this it surfaces as an opaque HTTP 500.
+        raise PoseModelUnavailable(
+            f"MediaPipe could not load its native libraries ({exc}). "
+            "These are system packages that pip does not install. On "
+            "Debian/Ubuntu: sudo apt-get install -y libgles2 libegl1 libglib2.0-0"
+        ) from exc
+    except Exception as exc:  # noqa: BLE001 - report, never leak a bare 500
+        raise PoseModelUnavailable(
+            f"Could not initialise the pose model: {type(exc).__name__}: {exc}"
+        ) from exc
+
     log.info("Loaded MediaPipe pose landmarker from %s", config.POSE_MODEL_PATH)
     return _landmarker
 
