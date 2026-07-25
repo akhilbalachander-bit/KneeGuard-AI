@@ -336,6 +336,24 @@
     </div>
   </div>
 
+  <!-- Shown when someone returns from the confirmation email. -->
+  <div id="welcome-dialog" class="modal" hidden role="dialog" aria-modal="true"
+       aria-labelledby="welcome-title">
+    <div class="modal-card welcome-card">
+      <span class="welcome-mark" aria-hidden="true">◑</span>
+      <h2 id="welcome-title">Welcome to KneeGuard AI</h2>
+      <p id="welcome-body" class="welcome-body"></p>
+      <ul class="welcome-points">
+        <li>Answer a few questions about your week's workload.</li>
+        <li>Record a three-second drop-jump so we can measure how your knee tracks.</li>
+        <li>Get an ACL, MCL and PCL scorecard with exercises that target what we found.</li>
+      </ul>
+      <button id="welcome-start" class="btn btn-primary" type="button">
+        Start my first assessment
+      </button>
+    </div>
+  </div>
+
   <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
 
   <footer class="footer">

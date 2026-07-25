@@ -272,7 +272,23 @@ render and the rest of the app is unchanged.
    SUPABASE_ANON_KEY=eyJhbGci...
    ```
 
-5. Restart the server. A **Sign in** button appears in the header.
+5. **Authentication → URL Configuration**: add the address you run the app
+   from to **Redirect URLs** — `http://localhost:8000`, your Codespaces
+   forwarded URL, and your deployed URL. Sign-up asks Supabase to send people
+   back to `window.location.origin`, and Supabase only honours addresses on
+   that list.
+
+6. Restart the server. A **Sign in** button appears in the header.
+
+### The confirmation email
+
+If **Confirm email** is on, the link in that email returns to the app rather
+than a blank page: the session is established, a **Welcome to KneeGuard AI**
+screen explains what to do next, and the auth tokens are stripped out of the
+address bar so they cannot be copied out of it or end up in a log.
+
+An expired or already-used link opens the sign-in dialog with an explanation
+instead of appearing to do nothing.
 
 ### How it is wired
 

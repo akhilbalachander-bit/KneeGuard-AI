@@ -784,6 +784,40 @@
     lastReport: null,
   };
 
+  // supabase-js consumes and strips the auth parameters from the URL as soon
+  // as the client is created, so capture the arrival state before that.
+  const arrival = (function readArrival() {
+    const query = new URLSearchParams(location.search);
+    const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+    const get = (key) => query.get(key) || hash.get(key);
+    return {
+      isConfirmation: Boolean(
+        get("code") || get("access_token") || get("token_hash") ||
+        ["signup", "email_change", "magiclink", "invite"].includes(get("type"))
+      ),
+      errorDescription: get("error_description") || get("error") || "",
+    };
+  })();
+
+  /** Take the tokens out of the address bar so they are not shared or logged. */
+  function cleanAuthParamsFromUrl() {
+    if (!location.search && !location.hash) return;
+    const keep = new URLSearchParams(location.search);
+    ["code", "token_hash", "type", "error", "error_description",
+     "error_code"].forEach((k) => keep.delete(k));
+    const search = keep.toString();
+    history.replaceState({}, document.title,
+      location.pathname + (search ? "?" + search : ""));
+  }
+
+  function showWelcome(user) {
+    $("welcome-body").textContent = user
+      ? `Your email is confirmed and you are signed in as ${user.email}. ` +
+        "Every scorecard you run from now on is saved to your history."
+      : "Your email is confirmed. Sign in to start saving your scorecards.";
+    openModal("welcome-dialog");
+  }
+
   let toastTimer = null;
 
   /** Brief confirmation banner — auth state changes are otherwise invisible. */
@@ -815,8 +849,24 @@
     accounts.client = window.supabase.createClient(cfg.url, cfg.anon_key);
     $("account-area").hidden = false;
 
+    if (arrival.errorDescription) {
+      // Expired or already-used link — say so instead of silently doing nothing.
+      cleanAuthParamsFromUrl();
+      setAuthMode("signin");
+      openModal("auth-dialog");
+      setAuthNotice(
+        `${arrival.errorDescription}. Request a new confirmation email by ` +
+        "signing up again, or just sign in if the address is already confirmed."
+      );
+    }
+
     accounts.client.auth.getSession().then(({ data }) => {
-      setUser(data && data.session ? data.session.user : null);
+      const user = data && data.session ? data.session.user : null;
+      setUser(user);
+      if (arrival.isConfirmation && !arrival.errorDescription) {
+        cleanAuthParamsFromUrl();
+        showWelcome(user);
+      }
     });
     accounts.client.auth.onAuthStateChange((event, session) => {
       setUser(session ? session.user : null);
@@ -951,7 +1001,13 @@
       const auth = accounts.client.auth;
       const { data, error: authError } =
         accounts.mode === "signup"
-          ? await auth.signUp({ email, password })
+          ? await auth.signUp({
+              email,
+              password,
+              // Without this the link uses the project's Site URL, which is
+              // rarely wherever the app is actually running.
+              options: { emailRedirectTo: window.location.origin },
+            })
           : await auth.signInWithPassword({ email, password });
 
       if (authError) throw new Error(authError.message);
@@ -1071,6 +1127,12 @@
     });
     $("account-history").addEventListener("click", openHistory);
 
+    $("welcome-start").addEventListener("click", () => {
+      closeModal("welcome-dialog");
+      const form = document.getElementById("workload-form");
+      if (form) form.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
     $("auth-close").addEventListener("click", () => closeModal("auth-dialog"));
     $("history-close").addEventListener("click", () => closeModal("history-dialog"));
     $("auth-toggle").addEventListener("click", () => {
@@ -1080,14 +1142,14 @@
     $("auth-form").addEventListener("submit", submitAuth);
 
     // Click the backdrop or press Escape to dismiss.
-    ["auth-dialog", "history-dialog"].forEach((id) => {
+    ["auth-dialog", "history-dialog", "welcome-dialog"].forEach((id) => {
       $(id).addEventListener("click", (event) => {
         if (event.target === $(id)) closeModal(id);
       });
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
-      ["auth-dialog", "history-dialog"].forEach((id) => {
+      ["auth-dialog", "history-dialog", "welcome-dialog"].forEach((id) => {
         if (!$(id).hidden) closeModal(id);
       });
     });

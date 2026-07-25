@@ -112,6 +112,45 @@ body {
 
 .masthead-actions { display: flex; align-items: center; gap: 10px; }
 
+/* ── Welcome ──────────────────────────────────────────────────────── */
+
+.welcome-card { max-width: 440px; text-align: center; }
+
+.welcome-mark {
+  display: block;
+  font-size: 40px;
+  line-height: 1;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.welcome-card h2 {
+  margin: 0 0 8px;
+  font-size: 21px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+
+.welcome-body {
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.welcome-points {
+  margin: 0 0 18px;
+  padding: 0 0 0 20px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.welcome-points li { margin-bottom: 7px; }
+
+.welcome-card .btn-primary { width: 100%; }
+
 /* ── Toast ────────────────────────────────────────────────────────── */
 
 .toast {
