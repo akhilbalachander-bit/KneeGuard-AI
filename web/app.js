@@ -791,10 +791,11 @@
     const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
     const get = (key) => query.get(key) || hash.get(key);
     return {
+      isRecovery: get("type") === "recovery",
       isConfirmation: Boolean(
         get("code") || get("access_token") || get("token_hash") ||
         ["signup", "email_change", "magiclink", "invite"].includes(get("type"))
-      ),
+      ) && get("type") !== "recovery",
       errorDescription: get("error_description") || get("error") || "",
     };
   })();
@@ -863,7 +864,10 @@
     accounts.client.auth.getSession().then(({ data }) => {
       const user = data && data.session ? data.session.user : null;
       setUser(user);
-      if (arrival.isConfirmation && !arrival.errorDescription) {
+      if (arrival.isRecovery && !arrival.errorDescription) {
+        cleanAuthParamsFromUrl();
+        openModal("newpw-dialog");
+      } else if (arrival.isConfirmation && !arrival.errorDescription) {
         cleanAuthParamsFromUrl();
         showWelcome(user);
       }
@@ -871,7 +875,10 @@
     accounts.client.auth.onAuthStateChange((event, session) => {
       setUser(session ? session.user : null);
       // INITIAL_SESSION fires on every page load; only announce real changes.
-      if (event === "SIGNED_IN") {
+      if (event === "PASSWORD_RECOVERY") {
+        cleanAuthParamsFromUrl();
+        openModal("newpw-dialog");
+      } else if (event === "SIGNED_IN") {
         showToast(`Signed in as ${session.user.email}`, "in");
       } else if (event === "SIGNED_OUT") {
         showToast("Signed out", "out");
@@ -969,11 +976,21 @@
   function setAuthMode(mode) {
     accounts.mode = mode;
     const signup = mode === "signup";
-    $("auth-title").textContent = signup ? "Create an account" : "Sign in";
-    $("auth-submit").textContent = signup ? "Create account" : "Sign in";
-    $("auth-toggle").textContent = signup
-      ? "I already have an account"
-      : "Create an account instead";
+    const reset = mode === "reset";
+
+    $("auth-title").textContent =
+      reset ? "Reset your password" : signup ? "Create an account" : "Sign in";
+    $("auth-submit").textContent =
+      reset ? "Email me a reset link" : signup ? "Create account" : "Sign in";
+    $("auth-toggle").textContent =
+      reset ? "Back to sign in" : signup
+        ? "I already have an account"
+        : "Create an account instead";
+
+    // Reset only needs an address.
+    $("auth-password").closest(".field").hidden = reset;
+    $("auth-password").required = !reset;
+    $("auth-forgot").hidden = reset || signup;
     $("auth-password").setAttribute(
       "autocomplete", signup ? "new-password" : "current-password"
     );
@@ -999,6 +1016,20 @@
 
     try {
       const auth = accounts.client.auth;
+
+      if (accounts.mode === "reset") {
+        const { error: resetError } = await auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
+        if (resetError) throw new Error(resetError.message);
+        setAuthMode("signin");
+        setAuthNotice(
+          `If an account exists for ${email}, a reset link is on its way. ` +
+          "Open it and you can choose a new password."
+        );
+        return;
+      }
+
       const { data, error: authError } =
         accounts.mode === "signup"
           ? await auth.signUp({
@@ -1115,6 +1146,31 @@
     list.replaceChildren(...data.map(historyCard));
   }
 
+  async function submitNewPassword(event) {
+    event.preventDefault();
+    const password = $("newpw-password").value;
+    const button = $("newpw-submit");
+    const error = $("newpw-error");
+
+    error.hidden = true;
+    button.disabled = true;
+    button.textContent = "Saving…";
+    try {
+      const { error: updateError } =
+        await accounts.client.auth.updateUser({ password });
+      if (updateError) throw new Error(updateError.message);
+      closeModal("newpw-dialog");
+      $("newpw-form").reset();
+      showToast("Password updated", "in");
+    } catch (exc) {
+      error.hidden = false;
+      error.textContent = exc.message;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Save new password";
+    }
+  }
+
   function bindAccounts() {
     $("account-signin").addEventListener("click", () => {
       setAuthMode("signin");
@@ -1136,10 +1192,15 @@
     $("auth-close").addEventListener("click", () => closeModal("auth-dialog"));
     $("history-close").addEventListener("click", () => closeModal("history-dialog"));
     $("auth-toggle").addEventListener("click", () => {
-      setAuthMode(accounts.mode === "signup" ? "signin" : "signup");
+      setAuthMode(accounts.mode === "signin" ? "signup" : "signin");
       setAuthNotice("");
     });
     $("auth-form").addEventListener("submit", submitAuth);
+    $("newpw-form").addEventListener("submit", submitNewPassword);
+    $("auth-forgot").addEventListener("click", () => {
+      setAuthMode("reset");
+      setAuthNotice("");
+    });
 
     // Click the backdrop or press Escape to dismiss.
     ["auth-dialog", "history-dialog", "welcome-dialog"].forEach((id) => {

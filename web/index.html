@@ -318,6 +318,9 @@
           <button id="auth-toggle" class="btn btn-ghost" type="button">
             Create an account instead
           </button>
+          <button id="auth-forgot" class="link-button" type="button">
+            Forgot your password?
+          </button>
         </div>
       </form>
     </div>
@@ -351,6 +354,33 @@
       <button id="welcome-start" class="btn btn-primary" type="button">
         Start my first assessment
       </button>
+    </div>
+  </div>
+
+  <!-- Shown when someone returns from a password-recovery email. -->
+  <div id="newpw-dialog" class="modal" hidden role="dialog" aria-modal="true"
+       aria-labelledby="newpw-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="newpw-title">Choose a new password</h2>
+      </div>
+      <p class="modal-sub" id="newpw-sub">
+        You followed a recovery link. Set a new password to finish signing in.
+      </p>
+      <form id="newpw-form" class="form">
+        <label class="field">
+          <span class="field-label">New password</span>
+          <input type="password" id="newpw-password" autocomplete="new-password"
+                 minlength="6" required />
+          <span class="field-hint">At least 6 characters.</span>
+        </label>
+        <p id="newpw-error" class="auth-error" hidden role="alert"></p>
+        <div class="modal-actions">
+          <button id="newpw-submit" class="btn btn-primary" type="submit">
+            Save new password
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
