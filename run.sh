@@ -113,6 +113,32 @@ fi
 
 echo
 echo "  ┌─ KneeGuard AI ──────────────────────────────────────────"
+
+if [ "${CODESPACES:-}" = "true" ]; then
+  # In a codespace the LAN address is the container's internal IP, which is
+  # unreachable, and --https is pointless because GitHub already terminates
+  # TLS on the forwarded URL. Give the instructions that actually apply.
+  if [ -n "${CODESPACE_NAME:-}" ] && [ -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]; then
+    echo "  │  Open:  https://${CODESPACE_NAME}-${PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+  else
+    echo "  │  Open the forwarded port ${PORT} from the Ports tab."
+  fi
+  echo "  │"
+  echo "  │  If the Ports tab says 'No forwarded ports', click"
+  echo "  │  'Forward a Port' and enter ${PORT}."
+  echo "  │"
+  echo "  │  For a phone: right-click that port -> Port Visibility -> Public."
+  echo "  │  Do NOT use --https here; the forwarded URL is already HTTPS."
+  if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "  │"
+    echo "  │  ANTHROPIC_API_KEY unset — explanations use the rule-based writer."
+  fi
+  echo "  └─────────────────────────────────────────────────────────"
+  echo
+  exec "$PYTHON" -m uvicorn kneeguard.api:app \
+    --host 0.0.0.0 --port "$PORT" "${SSL_ARGS[@]}"
+fi
+
 echo "  │  This computer:  ${SCHEME}://localhost:${PORT}"
 if [ "$USE_HTTPS" = "1" ]; then
   if [ -n "$LAN_IP" ]; then
